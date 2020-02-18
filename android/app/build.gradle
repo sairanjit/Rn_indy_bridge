@@ -191,6 +191,7 @@ android {
 }
 
 dependencies {
+    implementation project(':rn-indy-sdk')
     implementation project(':@react-native-community_masked-view')
     implementation project(':react-native-screens')
     implementation project(':react-native-gesture-handler')

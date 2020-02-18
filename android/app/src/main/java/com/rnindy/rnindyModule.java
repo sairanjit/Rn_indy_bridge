@@ -16,7 +16,6 @@ import com.facebook.react.bridge.WritableNativeArray;
 import com.facebook.react.uimanager.IllegalViewOperationException;
 import com.google.gson.Gson;
 
-
 import org.hyperledger.indy.sdk.crypto.Crypto;
 import org.hyperledger.indy.sdk.crypto.CryptoResults;
 import org.hyperledger.indy.sdk.ledger.Ledger;
@@ -63,8 +62,6 @@ public class rnindyModule extends ReactContextBaseJavaModule {
     private Map<Integer, Wallet> walletMap;
     private Map<Integer, Pool> poolMap;
     private Map<Integer, WalletSearch> searchMap;
-
-
 
     // wallet
 
@@ -133,6 +130,97 @@ public class rnindyModule extends ReactContextBaseJavaModule {
             promise.reject(rejectResponse.getCode(), rejectResponse.toJson(), e);
         }
     }
+
+    @ReactMethod
+    public void CreateWalletAndDid(String name, String pin, Callback errorCallback, Callback successCallback) {
+        try {
+            PackageManager m = getCurrentActivity().getPackageManager();
+            String s = getCurrentActivity().getPackageName();
+            try {
+                PackageInfo p = m.getPackageInfo(s, 0);
+                s = p.applicationInfo.dataDir;
+            } catch (PackageManager.NameNotFoundException e) {
+                Log.w("yourtag", "Error Package name not found ", e);
+            }
+            JSONObject myWalletConfig = new JSONObject().put("id", name);
+            JSONObject path = new JSONObject().put("path", s);
+            myWalletConfig.put("storage_config", path);
+            Log.d("HI_Config", myWalletConfig.toString());
+            String myWalletCredentials = new JSONObject().put("key", pin).toString();
+            Wallet.createWallet(myWalletConfig.toString(), myWalletCredentials).get();
+            Wallet myWallet = Wallet.openWallet(myWalletConfig.toString(), myWalletCredentials).get();
+
+            DidResults.CreateAndStoreMyDidResult createMyDidResult = Did.createAndStoreMyDid(myWallet, "{}").get();
+            String myDid = createMyDidResult.getDid();
+            String myVerKey = createMyDidResult.getVerkey();
+            myWallet.closeWallet().get();
+            successCallback.invoke(myDid);
+            Log.d("HI_myDid", myDid);
+            Log.d("HI_myVerKey", myVerKey);
+        } catch (ExecutionException e) {
+            Log.d("HI_ExecutionException", e.toString());
+            e.printStackTrace();
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+            Log.d("HI_InterruptedException", e.toString());
+        } catch (IndyException e) {
+            e.printStackTrace();
+            Log.d("HI_IndyException", e.toString());
+        } catch (JSONException e) {
+            e.printStackTrace();
+        }
+    }
+
+    // @ReactMethod
+    // public void CreateWalletAndDid(String pin, Callback errorCallback, Callback successCallback) {
+    //     try {
+
+    //         LibIndy.init();
+    //         if (LibIndy.isInitialized()) {
+
+    //             try {
+    //                 PackageManager m = getCurrentActivity().getPackageManager();
+    //                 String s = getCurrentActivity().getPackageName();
+    //                 try {
+    //                     PackageInfo p = m.getPackageInfo(s, 0);
+    //                     s = p.applicationInfo.dataDir;
+    //                 } catch (PackageManager.NameNotFoundException e) {
+    //                     Log.w("yourtag", "Error Package name not found ", e);
+    //                 }
+    //                 JSONObject myWalletConfig = new JSONObject().put("id", "Protech");
+    //                 JSONObject path = new JSONObject().put("path", s);
+    //                 myWalletConfig.put("storage_config", path);
+    //                 Log.d("HI_Config", myWalletConfig.toString());
+    //                 String myWalletCredentials = new JSONObject().put("key", pin).toString();
+    //                 Wallet.createWallet(myWalletConfig.toString(), myWalletCredentials).get();
+    //                 Wallet myWallet = Wallet.openWallet(myWalletConfig.toString(), myWalletCredentials).get();
+
+    //                 DidResults.CreateAndStoreMyDidResult createMyDidResult = Did.createAndStoreMyDid(myWallet, "{}")
+    //                         .get();
+    //                 String myDid = createMyDidResult.getDid();
+    //                 String myVerKey = createMyDidResult.getVerkey();
+    //                 myWallet.closeWallet().get();
+    //                 successCallback.invoke(myDid);
+    //                 Log.d("HI_myDid", myDid);
+    //                 Log.d("HI_myVerKey", myVerKey);
+    //             } catch (ExecutionException e) {
+    //                 Log.d("HI_ExecutionException", e.toString());
+    //                 e.printStackTrace();
+    //             } catch (InterruptedException e) {
+    //                 e.printStackTrace();
+    //                 Log.d("HI_InterruptedException", e.toString());
+    //             } catch (IndyException e) {
+    //                 e.printStackTrace();
+    //                 Log.d("HI_IndyException", e.toString());
+    //             } catch (JSONException e) {
+    //                 e.printStackTrace();
+    //             }
+
+    //         }
+    //     } catch (IllegalViewOperationException e) {
+    //         errorCallback.invoke(e.getMessage());
+    //     }
+    // }
 
     @ReactMethod
     public void keyForDid(int poolHandle, int walletHandle, String did, Promise promise) {
@@ -211,9 +299,10 @@ public class rnindyModule extends ReactContextBaseJavaModule {
     }
 
     @ReactMethod
-    public void cryptoAnonDecrypt(int walletHandle, String recipientVk, ReadableArray encryptedMessage, Promise promise) {
+    public void cryptoAnonDecrypt(int walletHandle, String recipientVk, ReadableArray encryptedMessage,
+            Promise promise) {
         try {
-            byte [] encryptedMessageBytes = readableArrayToBuffer(encryptedMessage);
+            byte[] encryptedMessageBytes = readableArrayToBuffer(encryptedMessage);
             Wallet wallet = walletMap.get(walletHandle);
             byte[] decryptedData = Crypto.anonDecrypt(wallet, recipientVk, encryptedMessageBytes).get();
             promise.resolve(decryptedData);
@@ -225,7 +314,8 @@ public class rnindyModule extends ReactContextBaseJavaModule {
 
     @ReactMethod
     @Deprecated
-    public void cryptoAuthCrypt(int walletHandle, String senderVk, String recipientVk, ReadableArray message, Promise promise) {
+    public void cryptoAuthCrypt(int walletHandle, String senderVk, String recipientVk, ReadableArray message,
+            Promise promise) {
         try {
             byte[] buffer = readableArrayToBuffer(message);
             Wallet wallet = walletMap.get(walletHandle);
@@ -243,11 +333,13 @@ public class rnindyModule extends ReactContextBaseJavaModule {
 
     @ReactMethod
     @Deprecated
-    public void cryptoAuthDecrypt(int walletHandle, String recipientVk, ReadableArray encryptedMessage, Promise promise) {
+    public void cryptoAuthDecrypt(int walletHandle, String recipientVk, ReadableArray encryptedMessage,
+            Promise promise) {
         try {
             byte[] encryptedMessageBytes = readableArrayToBuffer(encryptedMessage);
             Wallet wallet = walletMap.get(walletHandle);
-            CryptoResults.AuthDecryptResult decryptedResult = Crypto.authDecrypt(wallet, recipientVk, encryptedMessageBytes).get();
+            CryptoResults.AuthDecryptResult decryptedResult = Crypto
+                    .authDecrypt(wallet, recipientVk, encryptedMessageBytes).get();
             String theirKey = decryptedResult.getVerkey();
 
             WritableArray decryptedData = new WritableNativeArray();
@@ -296,9 +388,9 @@ public class rnindyModule extends ReactContextBaseJavaModule {
         }
     }
 
-
     @ReactMethod
-    public void packMessage(int walletHandle, ReadableArray message, ReadableArray receiverKeys, String senderVk, Promise promise) {
+    public void packMessage(int walletHandle, ReadableArray message, ReadableArray receiverKeys, String senderVk,
+            Promise promise) {
         try {
             Wallet wallet = walletMap.get(walletHandle);
             byte[] buffer = readableArrayToBuffer(message);
@@ -468,10 +560,14 @@ public class rnindyModule extends ReactContextBaseJavaModule {
     }
 
     @ReactMethod
-    public void proverCreateCredentialReq(int walletHandle, String proverDid, String credentialOfferJson, String credentialDefJson, String masterSecretId, Promise promise) {
+    public void proverCreateCredentialReq(int walletHandle, String proverDid, String credentialOfferJson,
+            String credentialDefJson, String masterSecretId, Promise promise) {
         try {
             Wallet wallet = walletMap.get(walletHandle);
-            AnoncredsResults.ProverCreateCredentialRequestResult credentialRequestResult = Anoncreds.proverCreateCredentialReq(wallet, proverDid, credentialOfferJson, credentialDefJson, masterSecretId).get();
+            AnoncredsResults.ProverCreateCredentialRequestResult credentialRequestResult = Anoncreds
+                    .proverCreateCredentialReq(wallet, proverDid, credentialOfferJson, credentialDefJson,
+                            masterSecretId)
+                    .get();
             WritableArray response = new WritableNativeArray();
             response.pushString(credentialRequestResult.getCredentialRequestJson());
             response.pushString(credentialRequestResult.getCredentialRequestMetadataJson());
@@ -483,10 +579,13 @@ public class rnindyModule extends ReactContextBaseJavaModule {
     }
 
     @ReactMethod
-    public void proverStoreCredential(int walletHandle, String credId, String credReqMetadataJson, String credJson, String credDefJson, String revRegDefJson, Promise promise) {
+    public void proverStoreCredential(int walletHandle, String credId, String credReqMetadataJson, String credJson,
+            String credDefJson, String revRegDefJson, Promise promise) {
         try {
             Wallet wallet = walletMap.get(walletHandle);
-            String newCredId = Anoncreds.proverStoreCredential(wallet, credId, credReqMetadataJson, credJson, credDefJson, revRegDefJson).get();
+            String newCredId = Anoncreds
+                    .proverStoreCredential(wallet, credId, credReqMetadataJson, credJson, credDefJson, revRegDefJson)
+                    .get();
             promise.resolve(newCredId);
         } catch (Exception e) {
             IndySdkRejectResponse rejectResponse = new IndySdkRejectResponse(e);
@@ -521,7 +620,8 @@ public class rnindyModule extends ReactContextBaseJavaModule {
     // non_secrets
 
     @ReactMethod
-    public void addWalletRecord(int walletHandle, String type, String id, String value, String tagsJson, Promise promise) {
+    public void addWalletRecord(int walletHandle, String type, String id, String value, String tagsJson,
+            Promise promise) {
         try {
             Wallet wallet = walletMap.get(walletHandle);
             WalletRecord.add(wallet, type, id, value, tagsJson).get();
@@ -649,7 +749,8 @@ public class rnindyModule extends ReactContextBaseJavaModule {
 
         private IndySdkRejectResponse(Throwable e) {
             // Indy bridge exposed API should return consistently only numeric code
-            // When we don't get IndyException and Indy SDK error code we return zero as default
+            // When we don't get IndyException and Indy SDK error code we return zero as
+            // default
             String code = "0";
 
             if (e instanceof ExecutionException) {
@@ -679,56 +780,4 @@ public class rnindyModule extends ReactContextBaseJavaModule {
             return gson.toJson(this);
         }
     }
-
-    @ReactMethod
-    public void CreateWalletAndDid(String pin, Callback errorCallback, Callback successCallback) {
-        try {
-
-            LibIndy.init();
-            if (LibIndy.isInitialized()) {
-
-                try {
-                    PackageManager m = getCurrentActivity().getPackageManager();
-                    String s = getCurrentActivity().getPackageName();
-                    try {
-                        PackageInfo p = m.getPackageInfo(s, 0);
-                        s = p.applicationInfo.dataDir;
-                    } catch (PackageManager.NameNotFoundException e) {
-                        Log.w("yourtag", "Error Package name not found ", e);
-                    }
-                    JSONObject myWalletConfig = new JSONObject().put("id", "Protech");
-                    JSONObject path = new JSONObject().put("path", s);
-                    myWalletConfig.put("storage_config", path);
-                    Log.d("HI_Config", myWalletConfig.toString());
-                    String myWalletCredentials = new JSONObject().put("key", pin).toString();
-                    Wallet.createWallet(myWalletConfig.toString(), myWalletCredentials).get();
-                    Wallet myWallet = Wallet.openWallet(myWalletConfig.toString(), myWalletCredentials).get();
-
-                    DidResults.CreateAndStoreMyDidResult createMyDidResult = Did.createAndStoreMyDid(myWallet, "{}")
-                            .get();
-                    String myDid = createMyDidResult.getDid();
-                    String myVerKey = createMyDidResult.getVerkey();
-                    myWallet.closeWallet().get();
-                    successCallback.invoke(myDid);
-                    Log.d("HI_myDid", myDid);
-                    Log.d("HI_myVerKey", myVerKey);
-                } catch (ExecutionException e) {
-                    Log.d("HI_ExecutionException", e.toString());
-                    e.printStackTrace();
-                } catch (InterruptedException e) {
-                    e.printStackTrace();
-                    Log.d("HI_InterruptedException", e.toString());
-                } catch (IndyException e) {
-                    e.printStackTrace();
-                    Log.d("HI_IndyException", e.toString());
-                } catch (JSONException e) {
-                    e.printStackTrace();
-                }
-
-            }
-        } catch (IllegalViewOperationException e) {
-            errorCallback.invoke(e.getMessage());
-        }
-    }
 }
-
