@@ -15,6 +15,7 @@ import com.facebook.react.bridge.WritableArray;
 import com.facebook.react.bridge.WritableNativeArray;
 import com.facebook.react.uimanager.IllegalViewOperationException;
 import com.google.gson.Gson;
+import com.google.gson.JsonObject;
 
 import org.hyperledger.indy.sdk.crypto.Crypto;
 import org.hyperledger.indy.sdk.crypto.CryptoResults;
@@ -24,6 +25,8 @@ import org.hyperledger.indy.sdk.non_secrets.WalletRecord;
 import org.hyperledger.indy.sdk.non_secrets.WalletSearch;
 import org.hyperledger.indy.sdk.pairwise.Pairwise;
 import org.hyperledger.indy.sdk.pool.Pool;
+import org.hyperledger.indy.sdk.wallet.WalletExistsException;
+import org.hyperledger.indy.sdk.wallet.WalletStorageException;
 import org.json.JSONException;
 import org.json.JSONObject;
 
@@ -66,25 +69,60 @@ public class rnindyModule extends ReactContextBaseJavaModule {
     // wallet
 
     @ReactMethod
-    public void createWallet(String configJson, String credentialsJson, Promise promise) {
+    public void createWallet(String id, String pin, Callback errorCallback, Callback successCallback) {
         try {
-            Wallet.createWallet(configJson, credentialsJson).get();
-            promise.resolve(null);
-        } catch (Exception e) {
-            IndySdkRejectResponse rejectResponse = new IndySdkRejectResponse(e);
-            promise.reject(rejectResponse.getCode(), rejectResponse.toJson(), e);
+            Log.d("Hi_id", id);
+            Log.d("Hi_pin", pin);
+            String myWalletConfig = new JSONObject().put("id", id).toString();
+            String myWalletCredentials = new JSONObject().put("key", pin).toString();
+            Wallet.createWallet(myWalletConfig.toString(), myWalletCredentials).get();
+            // promise.resolve(null);
+            successCallback.invoke("Wallet created");
+        } catch (ExecutionException e) {
+            errorCallback.invoke(e.toString());
+            Log.d("HI_ExecutionException", e.toString());
+            e.printStackTrace();
+        } catch (InterruptedException e) {
+            errorCallback.invoke(e.toString());
+            e.printStackTrace();
+            Log.d("HI_InterruptedException", e.toString());
+        }
+        catch (IndyException e) {
+            errorCallback.invoke(e.toString());
+            e.printStackTrace();
+            Log.d("HI_IndyException", e.toString());
+        }
+        catch (JSONException e) {
+            errorCallback.invoke(e.toString());
+            e.printStackTrace();
+            Log.d("HI_JSONException", e.toString());
         }
     }
 
-    @ReactMethod
-    public void openWallet(String configJson, String credentialsJson, Promise promise) {
+    public Wallet openWallet(String id, String pin) {
         try {
-            Wallet wallet = Wallet.openWallet(configJson, credentialsJson).get();
-            walletMap.put(wallet.getWalletHandle(), wallet);
-            promise.resolve(wallet.getWalletHandle());
-        } catch (Exception e) {
-            IndySdkRejectResponse rejectResponse = new IndySdkRejectResponse(e);
-            promise.reject(rejectResponse.getCode(), rejectResponse.toJson(), e);
+            String myWalletConfig = new JSONObject().put("id", id).toString();
+            String myWalletCredentials = new JSONObject().put("key", pin).toString();
+            Wallet wallet = Wallet.openWallet(myWalletConfig.toString(), myWalletCredentials).get();
+            return wallet;
+        } catch (ExecutionException e) {
+            Log.d("HI_ExecutionException", e.toString());
+            e.printStackTrace();
+            return null;
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+            Log.d("HI_InterruptedException", e.toString());
+            return null;
+        }
+        catch (IndyException e) {
+            e.printStackTrace();
+            Log.d("HI_IndyException", e.toString());
+            return null;
+        }
+        catch (JSONException e) {
+            e.printStackTrace();
+            Log.d("HI_JSONException", e.toString());
+            return null;
         }
     }
 
@@ -115,23 +153,6 @@ public class rnindyModule extends ReactContextBaseJavaModule {
     // did
 
     @ReactMethod
-    public void createAndStoreMyDid(int walletHandle, String didJson, Promise promise) {
-        try {
-            Wallet wallet = walletMap.get(walletHandle);
-            DidResults.CreateAndStoreMyDidResult createMyDidResult = Did.createAndStoreMyDid(wallet, didJson).get();
-            String myDid = createMyDidResult.getDid();
-            String myVerkey = createMyDidResult.getVerkey();
-            WritableArray response = new WritableNativeArray();
-            response.pushString(myDid);
-            response.pushString(myVerkey);
-            promise.resolve(response);
-        } catch (Exception e) {
-            IndySdkRejectResponse rejectResponse = new IndySdkRejectResponse(e);
-            promise.reject(rejectResponse.getCode(), rejectResponse.toJson(), e);
-        }
-    }
-
-    @ReactMethod
     public void CreateWalletAndDid(String name, String pin, Callback errorCallback, Callback successCallback) {
         try {
             PackageManager m = getCurrentActivity().getPackageManager();
@@ -160,67 +181,44 @@ public class rnindyModule extends ReactContextBaseJavaModule {
         } catch (ExecutionException e) {
             Log.d("HI_ExecutionException", e.toString());
             e.printStackTrace();
+            errorCallback.invoke(e.toString());
         } catch (InterruptedException e) {
             e.printStackTrace();
             Log.d("HI_InterruptedException", e.toString());
+            errorCallback.invoke(e.toString());
         } catch (IndyException e) {
             e.printStackTrace();
             Log.d("HI_IndyException", e.toString());
+            errorCallback.invoke(e.toString());
         } catch (JSONException e) {
             e.printStackTrace();
+            errorCallback.invoke(e.toString());
         }
     }
 
-    // @ReactMethod
-    // public void CreateWalletAndDid(String pin, Callback errorCallback, Callback successCallback) {
-    //     try {
-
-    //         LibIndy.init();
-    //         if (LibIndy.isInitialized()) {
-
-    //             try {
-    //                 PackageManager m = getCurrentActivity().getPackageManager();
-    //                 String s = getCurrentActivity().getPackageName();
-    //                 try {
-    //                     PackageInfo p = m.getPackageInfo(s, 0);
-    //                     s = p.applicationInfo.dataDir;
-    //                 } catch (PackageManager.NameNotFoundException e) {
-    //                     Log.w("yourtag", "Error Package name not found ", e);
-    //                 }
-    //                 JSONObject myWalletConfig = new JSONObject().put("id", "Protech");
-    //                 JSONObject path = new JSONObject().put("path", s);
-    //                 myWalletConfig.put("storage_config", path);
-    //                 Log.d("HI_Config", myWalletConfig.toString());
-    //                 String myWalletCredentials = new JSONObject().put("key", pin).toString();
-    //                 Wallet.createWallet(myWalletConfig.toString(), myWalletCredentials).get();
-    //                 Wallet myWallet = Wallet.openWallet(myWalletConfig.toString(), myWalletCredentials).get();
-
-    //                 DidResults.CreateAndStoreMyDidResult createMyDidResult = Did.createAndStoreMyDid(myWallet, "{}")
-    //                         .get();
-    //                 String myDid = createMyDidResult.getDid();
-    //                 String myVerKey = createMyDidResult.getVerkey();
-    //                 myWallet.closeWallet().get();
-    //                 successCallback.invoke(myDid);
-    //                 Log.d("HI_myDid", myDid);
-    //                 Log.d("HI_myVerKey", myVerKey);
-    //             } catch (ExecutionException e) {
-    //                 Log.d("HI_ExecutionException", e.toString());
-    //                 e.printStackTrace();
-    //             } catch (InterruptedException e) {
-    //                 e.printStackTrace();
-    //                 Log.d("HI_InterruptedException", e.toString());
-    //             } catch (IndyException e) {
-    //                 e.printStackTrace();
-    //                 Log.d("HI_IndyException", e.toString());
-    //             } catch (JSONException e) {
-    //                 e.printStackTrace();
-    //             }
-
-    //         }
-    //     } catch (IllegalViewOperationException e) {
-    //         errorCallback.invoke(e.getMessage());
-    //     }
-    // }
+    @ReactMethod
+    public void createAndStoreMyDid(String id, String pin, String didJson, Callback errorCallback,
+                                    Callback successCallback) {
+        try {
+            Log.d("In try", "In try");
+            Wallet w = openWallet(id, pin);
+            if (w != null) {
+                Log.d("In if", "In if");
+                DidResults.CreateAndStoreMyDidResult createMyDidResult = Did.createAndStoreMyDid(w, didJson).get();
+                String myDid = createMyDidResult.getDid();
+                String myVerkey = createMyDidResult.getVerkey();
+                JSONObject data = new JSONObject();
+                data.put("did",myDid);
+                data.put("verKey",myVerkey);
+                successCallback.invoke(data);
+            } else {
+                errorCallback.invoke("Wallet not found");
+            }
+        } catch (Exception e) {
+            IndySdkRejectResponse rejectResponse = new IndySdkRejectResponse(e);
+            errorCallback.invoke(rejectResponse);
+        }
+    }
 
     @ReactMethod
     public void keyForDid(int poolHandle, int walletHandle, String did, Promise promise) {
